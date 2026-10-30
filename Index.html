@@ -1,0 +1,846 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    
+    <!-- iOS Native App (PWA) Meta Tags -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="GAA Tracker">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="theme-color" content="#000000">
+    <title>GAA Match Score Tracker</title>
+
+    <!-- Apple Touch Icon (SVG Data URI) -->
+    <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' fill='%23007AFF'><rect width='100' height='100' rx='22'/><text y='65' x='50' font-size='50' font-family='sans-serif' font-weight='900' fill='white' text-anchor='middle'>GAA</text></svg>">
+    
+    <!-- PWA Web Manifest (Inline Data URI) -->
+    <link rel="manifest" href="data:application/json;charset=utf-8,%7B%22name%22%3A%22GAA%20Match%20Tracker%22%2C%22short_name%22%3A%22GAA%20Tracker%22%2C%22start_url%22%3A%22.%22%2C%22display%22%3A%22standalone%22%2C%22background_color%22%3A%22%23000000%22%2C%22theme_color%22%3A%22%23000000%22%7D">
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Canvas Confetti -->
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        ios: {
+                            blue: '#007AFF',
+                            green: '#34C759',
+                            indigo: '#5856D6',
+                            orange: '#FF9500',
+                            pink: '#FF2D55',
+                            purple: '#AF52DE',
+                            red: '#FF3B30',
+                            teal: '#5AC8FA',
+                            yellow: '#FFCC00',
+                            gray1: '#8E8E93',
+                            gray2: '#AEAEB2',
+                            gray3: '#C7C7CC',
+                            gray4: '#D1D1D6',
+                            gray5: '#E5E5EA',
+                            gray6: '#F2F2F7',
+                            bgLight: '#F2F2F7',
+                            cardLight: '#FFFFFF',
+                            bgDark: '#000000',
+                            cardDark: '#1C1C1E',
+                            subCardDark: '#2C2C2E'
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['-apple-system', 'BlinkMacSystemFont', '"SF Pro Display"', '"SF Pro Text"', '"Helvetica Neue"', 'sans-serif']
+                    },
+                    boxShadow: {
+                        'ios-sm': '0 2px 8px rgba(0, 0, 0, 0.04)',
+                        'ios-md': '0 4px 16px rgba(0, 0, 0, 0.08)',
+                        'ios-lg': '0 12px 32px rgba(0, 0, 0, 0.12)'
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        /* iOS Safe Area Padding for Notch / Home Bar */
+        .pt-safe { padding-top: max(1rem, env(safe-area-inset-top)); }
+        .pb-safe { padding-bottom: max(1.25rem, env(safe-area-inset-bottom)); }
+        
+        .ios-active-scale {
+            transition: transform 0.12s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.12s ease;
+        }
+        .ios-active-scale:active {
+            transform: scale(0.95);
+            opacity: 0.85;
+        }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    </style>
+</head>
+<body class="bg-ios-bgLight dark:bg-ios-bgDark font-sans antialiased h-full flex flex-col justify-between text-gray-900 dark:text-gray-100 select-none overflow-x-hidden transition-colors duration-300">
+
+    <!-- TOP HEADER / NAV BAR -->
+    <header class="pt-safe px-5 pb-3 bg-white/80 dark:bg-ios-cardDark/80 backdrop-blur-xl sticky top-0 z-40 border-b border-gray-200/50 dark:border-zinc-800/80 flex justify-between items-center">
+        <div>
+            <p class="text-[10px] font-bold uppercase tracking-wider text-ios-gray1">GAA Match Official Scorecard</p>
+            <h1 class="text-xl font-extrabold tracking-tight flex items-center space-x-1">
+                <span>GAA Scorekeeper</span>
+            </h1>
+        </div>
+        <div class="flex items-center space-x-2">
+            <!-- Theme Switcher -->
+            <button id="toggle-theme-btn" class="p-2 rounded-full bg-gray-100 dark:bg-zinc-800 text-gray-600 dark:text-gray-300 ios-active-scale">
+                <i data-lucide="sun" class="w-4 h-4 hidden dark:block"></i>
+                <i data-lucide="moon" class="w-4 h-4 block dark:hidden"></i>
+            </button>
+            <!-- Install / Help Guide -->
+            <button onclick="openPwaGuide()" class="p-2 rounded-full bg-ios-blue/10 text-ios-blue ios-active-scale" title="How to Install on iPhone">
+                <i data-lucide="download" class="w-4 h-4"></i>
+            </button>
+            <!-- Team Settings -->
+            <button onclick="openCustomizeModal()" class="p-2 rounded-full bg-gray-100 dark:bg-zinc-800 text-ios-gray1 ios-active-scale">
+                <i data-lucide="sliders" class="w-4 h-4"></i>
+            </button>
+        </div>
+    </header>
+
+    <!-- INSTALL TO HOME SCREEN SAFARI BANNER -->
+    <div id="pwa-install-banner" class="mx-4 mt-3 p-3.5 rounded-2xl bg-ios-blue text-white shadow-ios-md flex items-center justify-between z-30 transition-all duration-300">
+        <div class="flex items-center space-x-3">
+            <div class="p-2 rounded-xl bg-white/20">
+                <i data-lucide="smartphone" class="w-5 h-5"></i>
+            </div>
+            <div>
+                <p class="text-xs font-bold">Install as Standalone App</p>
+                <p class="text-[11px] text-white/80">Tap Share & Select 'Add to Home Screen'</p>
+            </div>
+        </div>
+        <div class="flex items-center space-x-1.5">
+            <button onclick="openPwaGuide()" class="px-2.5 py-1 rounded-lg bg-white text-ios-blue text-xs font-bold ios-active-scale">
+                How-To
+            </button>
+            <button onclick="dismissBanner()" class="p-1 rounded-full hover:bg-white/10 text-white/80">
+                <i data-lucide="x" class="w-4 h-4"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- MAIN APP CONTENT AREA -->
+    <main class="flex-1 overflow-y-auto px-4 py-4 space-y-4 no-scrollbar">
+
+        <!-- TAB 1: SCORECARD DASHBOARD -->
+        <section id="view-match" class="view-panel space-y-4">
+
+            <!-- 30-MINUTE TIMER CARD -->
+            <div class="p-4 rounded-2xl bg-white dark:bg-ios-cardDark shadow-ios-sm flex flex-col items-center space-y-3 border border-gray-100 dark:border-zinc-800/80">
+                <div class="flex items-center space-x-2">
+                    <span id="match-status-pill" class="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-ios-green/15 text-ios-green uppercase tracking-wide">
+                        1st Half
+                    </span>
+                    <span class="text-xs text-ios-gray1 font-medium">• 30 Min Half</span>
+                </div>
+
+                <!-- Clock -->
+                <div class="flex items-baseline space-x-1 font-mono">
+                    <span id="timer-display" class="text-5xl font-black tracking-tight text-gray-900 dark:text-white">30:00</span>
+                </div>
+
+                <!-- Timer Controls -->
+                <div class="flex items-center justify-center space-x-2 w-full pt-1">
+                    <button id="timer-start-btn" onclick="toggleTimer()" class="flex-1 py-3 rounded-xl bg-ios-green text-white font-bold text-sm flex items-center justify-center space-x-1.5 shadow-md ios-active-scale">
+                        <i data-lucide="play" class="w-4 h-4 fill-current"></i>
+                        <span id="start-btn-label">Start Match</span>
+                    </button>
+                    
+                    <button onclick="addExtraTime(1)" class="px-3.5 py-3 rounded-xl bg-gray-100 dark:bg-zinc-800 text-xs font-bold text-ios-blue flex items-center space-x-1 ios-active-scale" title="Add 1 Min Extra Time">
+                        <span>+1 Min</span>
+                    </button>
+
+                    <button onclick="nextPeriod()" class="px-3.5 py-3 rounded-xl bg-gray-100 dark:bg-zinc-800 text-xs font-bold text-ios-purple flex items-center space-x-1 ios-active-scale" title="Next Half / Period">
+                        <i data-lucide="skip-forward" class="w-3.5 h-3.5"></i>
+                        <span id="period-btn-label">Half-Time</span>
+                    </button>
+
+                    <button onclick="resetMatch()" class="p-3 rounded-xl bg-gray-100 dark:bg-zinc-800 text-ios-red ios-active-scale" title="Reset Match">
+                        <i data-lucide="rotate-ccw" class="w-4 h-4"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- OFFICIAL GAA SCOREBOARD -->
+            <div class="p-4 rounded-2xl bg-white dark:bg-ios-cardDark shadow-ios-sm space-y-4 border border-gray-100 dark:border-zinc-800/80">
+                
+                <!-- Goals / Points Display Header -->
+                <div class="grid grid-cols-2 gap-2 text-center pb-3 border-b border-gray-100 dark:border-zinc-800">
+                    <!-- Home Team Banner -->
+                    <div class="flex flex-col items-center">
+                        <div class="flex items-center space-x-1.5 mb-1">
+                            <div id="team-a-badge" class="w-3.5 h-3.5 rounded-full bg-ios-blue"></div>
+                            <span id="team-a-name-disp" class="text-xs font-extrabold uppercase tracking-wider text-gray-600 dark:text-gray-300 truncate max-w-[120px]">Home Team</span>
+                        </div>
+                        <div class="text-3xl font-black tracking-tight text-gray-900 dark:text-white" id="team-a-gaa-display">0-00</div>
+                        <div class="text-[11px] font-bold text-ios-blue">Total: <span id="team-a-total-pts">0</span> pts</div>
+                    </div>
+
+                    <!-- Away Team Banner -->
+                    <div class="flex flex-col items-center border-l border-gray-100 dark:border-zinc-800 pl-2">
+                        <div class="flex items-center space-x-1.5 mb-1">
+                            <div id="team-b-badge" class="w-3.5 h-3.5 rounded-full bg-ios-green"></div>
+                            <span id="team-b-name-disp" class="text-xs font-extrabold uppercase tracking-wider text-gray-600 dark:text-gray-300 truncate max-w-[120px]">Away Team</span>
+                        </div>
+                        <div class="text-3xl font-black tracking-tight text-gray-900 dark:text-white" id="team-b-gaa-display">0-00</div>
+                        <div class="text-[11px] font-bold text-ios-green">Total: <span id="team-b-total-pts">0</span> pts</div>
+                    </div>
+                </div>
+
+                <!-- Score Adjustment Buttons -->
+                <div class="grid grid-cols-2 gap-3 pt-1">
+                    
+                    <!-- Team A Controls -->
+                    <div class="space-y-3 bg-gray-50 dark:bg-zinc-900/50 p-2.5 rounded-xl border border-gray-100 dark:border-zinc-800/50">
+                        <span class="text-[10px] font-extrabold text-ios-blue uppercase tracking-wider block text-center">Home Score</span>
+                        
+                        <!-- Goal Controls (+3) -->
+                        <div class="space-y-1">
+                            <div class="flex justify-between items-center text-xs font-bold px-1">
+                                <span class="text-gray-500">Goals (3pts)</span>
+                                <span id="team-a-goals-count" class="text-sm">0</span>
+                            </div>
+                            <div class="flex space-x-1.5">
+                                <button onclick="modifyScore('a', 'goals', -1)" class="flex-1 py-2 bg-gray-200 dark:bg-zinc-800 text-gray-700 dark:text-gray-200 font-bold rounded-lg text-sm ios-active-scale">-</button>
+                                <button onclick="modifyScore('a', 'goals', 1)" class="flex-2 w-full py-2 bg-ios-blue text-white font-bold rounded-lg text-sm shadow-sm ios-active-scale">+ Goal</button>
+                            </div>
+                        </div>
+
+                        <!-- Point Controls (+1) -->
+                        <div class="space-y-1">
+                            <div class="flex justify-between items-center text-xs font-bold px-1">
+                                <span class="text-gray-500">Points (1pt)</span>
+                                <span id="team-a-points-count" class="text-sm">0</span>
+                            </div>
+                            <div class="flex space-x-1.5">
+                                <button onclick="modifyScore('a', 'points', -1)" class="flex-1 py-2 bg-gray-200 dark:bg-zinc-800 text-gray-700 dark:text-gray-200 font-bold rounded-lg text-sm ios-active-scale">-</button>
+                                <button onclick="modifyScore('a', 'points', 1)" class="flex-2 w-full py-2 bg-blue-600 text-white font-bold rounded-lg text-sm shadow-sm ios-active-scale">+ Point</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Team B Controls -->
+                    <div class="space-y-3 bg-gray-50 dark:bg-zinc-900/50 p-2.5 rounded-xl border border-gray-100 dark:border-zinc-800/50">
+                        <span class="text-[10px] font-extrabold text-ios-green uppercase tracking-wider block text-center">Away Score</span>
+                        
+                        <!-- Goal Controls (+3) -->
+                        <div class="space-y-1">
+                            <div class="flex justify-between items-center text-xs font-bold px-1">
+                                <span class="text-gray-500">Goals (3pts)</span>
+                                <span id="team-b-goals-count" class="text-sm">0</span>
+                            </div>
+                            <div class="flex space-x-1.5">
+                                <button onclick="modifyScore('b', 'goals', -1)" class="flex-1 py-2 bg-gray-200 dark:bg-zinc-800 text-gray-700 dark:text-gray-200 font-bold rounded-lg text-sm ios-active-scale">-</button>
+                                <button onclick="modifyScore('b', 'goals', 1)" class="flex-2 w-full py-2 bg-ios-green text-white font-bold rounded-lg text-sm shadow-sm ios-active-scale">+ Goal</button>
+                            </div>
+                        </div>
+
+                        <!-- Point Controls (+1) -->
+                        <div class="space-y-1">
+                            <div class="flex justify-between items-center text-xs font-bold px-1">
+                                <span class="text-gray-500">Points (1pt)</span>
+                                <span id="team-b-points-count" class="text-sm">0</span>
+                            </div>
+                            <div class="flex space-x-1.5">
+                                <button onclick="modifyScore('b', 'points', -1)" class="flex-1 py-2 bg-gray-200 dark:bg-zinc-800 text-gray-700 dark:text-gray-200 font-bold rounded-lg text-sm ios-active-scale">-</button>
+                                <button onclick="modifyScore('b', 'points', 1)" class="flex-2 w-full py-2 bg-emerald-600 text-white font-bold rounded-lg text-sm shadow-sm ios-active-scale">+ Point</button>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
+            <!-- QUICK EVENT LOG SHORTCUTS -->
+            <div class="p-3 rounded-2xl bg-white dark:bg-ios-cardDark shadow-ios-sm flex justify-around items-center text-xs font-semibold border border-gray-100 dark:border-zinc-800/80">
+                <button onclick="logCustomEvent('Wide Ball')" class="flex items-center space-x-1 text-ios-gray1 hover:text-ios-blue transition ios-active-scale">
+                    <i data-lucide="x-circle" class="w-4 h-4"></i>
+                    <span>Log Wide</span>
+                </button>
+                <div class="w-px h-4 bg-gray-200 dark:bg-zinc-800"></div>
+                <button onclick="logCustomEvent('Yellow Card')" class="flex items-center space-x-1 text-ios-yellow hover:opacity-80 transition ios-active-scale">
+                    <i data-lucide="square" class="w-4 h-4 fill-current"></i>
+                    <span>Yellow Card</span>
+                </button>
+                <div class="w-px h-4 bg-gray-200 dark:bg-zinc-800"></div>
+                <button onclick="logCustomEvent('Red Card')" class="flex items-center space-x-1 text-ios-red hover:opacity-80 transition ios-active-scale">
+                    <i data-lucide="square" class="w-4 h-4 fill-current"></i>
+                    <span>Red Card</span>
+                </button>
+            </div>
+
+        </section>
+
+        <!-- TAB 2: TIMELINE / EVENT LOG -->
+        <section id="view-timeline" class="view-panel hidden space-y-3">
+            <div class="flex justify-between items-center px-1">
+                <h2 class="text-base font-bold tracking-tight">Match Event Log</h2>
+                <span id="log-count-badge" class="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-gray-200 dark:bg-zinc-800 text-ios-gray1">0 Events</span>
+            </div>
+
+            <div id="events-timeline-container" class="space-y-2">
+                <!-- Dynamically rendered timeline -->
+            </div>
+        </section>
+
+        <!-- TAB 3: APP SETTINGS -->
+        <section id="view-settings" class="view-panel hidden space-y-3">
+            <div class="rounded-2xl bg-white dark:bg-ios-cardDark shadow-ios-sm overflow-hidden divide-y divide-gray-100 dark:divide-zinc-800 border border-gray-100 dark:border-zinc-800">
+                <div class="p-3.5 flex justify-between items-center">
+                    <div class="flex items-center space-x-3">
+                        <div class="p-2 rounded-xl bg-ios-blue text-white"><i data-lucide="volume-2" class="w-4 h-4"></i></div>
+                        <div>
+                            <p class="text-xs font-semibold">Sound & Audio Whistle</p>
+                            <p class="text-[10px] text-ios-gray1">Feedback on match actions</p>
+                        </div>
+                    </div>
+                    <input type="checkbox" id="sound-toggle" checked class="w-5 h-5 accent-ios-blue rounded">
+                </div>
+                <div class="p-3.5 flex justify-between items-center">
+                    <div class="flex items-center space-x-3">
+                        <div class="p-2 rounded-xl bg-ios-green text-white"><i data-lucide="clock" class="w-4 h-4"></i></div>
+                        <div>
+                            <p class="text-xs font-semibold">Standard Half Duration</p>
+                            <p class="text-[10px] text-ios-gray1">30 Minutes (GAA Standard)</p>
+                        </div>
+                    </div>
+                    <span class="text-xs font-bold text-ios-blue">30:00</span>
+                </div>
+            </div>
+
+            <div class="rounded-2xl bg-white dark:bg-ios-cardDark shadow-ios-sm overflow-hidden border border-gray-100 dark:border-zinc-800">
+                <button onclick="resetMatch()" class="w-full p-3.5 flex items-center justify-between text-ios-red hover:bg-gray-50 dark:hover:bg-zinc-800/50 transition">
+                    <div class="flex items-center space-x-3">
+                        <i data-lucide="trash-2" class="w-4 h-4"></i>
+                        <span class="text-xs font-semibold">Clear Scorecard & Log</span>
+                    </div>
+                    <i data-lucide="chevron-right" class="w-4 h-4 text-ios-gray1"></i>
+                </button>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- BOTTOM TAB NAVIGATION -->
+    <nav class="pb-safe bg-white/80 dark:bg-ios-cardDark/80 backdrop-blur-xl border-t border-gray-200 dark:border-zinc-800 px-6 pt-2 flex justify-around items-center z-40">
+        <button onclick="switchTab('match')" id="tab-match" class="flex flex-col items-center space-y-1 text-ios-blue ios-active-scale">
+            <i data-lucide="trophy" class="w-5 h-5"></i>
+            <span class="text-[10px] font-medium">Scorecard</span>
+        </button>
+        <button onclick="switchTab('timeline')" id="tab-timeline" class="flex flex-col items-center space-y-1 text-ios-gray1 hover:text-ios-blue transition ios-active-scale">
+            <i data-lucide="list-ordered" class="w-5 h-5"></i>
+            <span class="text-[10px] font-medium">Timeline</span>
+        </button>
+        <button onclick="switchTab('settings')" id="tab-settings" class="flex flex-col items-center space-y-1 text-ios-gray1 hover:text-ios-blue transition ios-active-scale">
+            <i data-lucide="settings" class="w-5 h-5"></i>
+            <span class="text-[10px] font-medium">Settings</span>
+        </button>
+    </nav>
+
+    <!-- CUSTOMIZE TEAMS MODAL SHEET -->
+    <div id="customize-modal" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 opacity-0 pointer-events-none transition-opacity duration-300 flex flex-col justify-end">
+        <div id="customize-modal-card" class="bg-ios-bgLight dark:bg-ios-cardDark rounded-t-[32px] p-5 space-y-4 transform translate-y-full transition-transform duration-300 shadow-ios-lg pb-safe">
+            <div class="w-12 h-1.5 bg-gray-300 dark:bg-zinc-700 rounded-full mx-auto -mt-1"></div>
+            
+            <div class="flex justify-between items-center">
+                <h3 class="text-base font-bold">Customize Match Teams</h3>
+                <button onclick="closeCustomizeModal()" class="w-7 h-7 rounded-full bg-gray-200 dark:bg-zinc-800 text-ios-gray1 flex items-center justify-center">
+                    <i data-lucide="x" class="w-4 h-4"></i>
+                </button>
+            </div>
+
+            <!-- Home Team Customization -->
+            <div class="space-y-2 bg-white dark:bg-zinc-800/80 p-3.5 rounded-xl border border-gray-100 dark:border-zinc-700">
+                <p class="text-xs font-bold text-ios-blue uppercase">Home Team (Team A)</p>
+                <div class="grid grid-cols-3 gap-2">
+                    <input type="text" id="input-team-a-name" value="Dublin" placeholder="Team Name" class="col-span-2 px-3 py-2 rounded-lg bg-gray-100 dark:bg-zinc-900 border border-gray-200 dark:border-zinc-700 text-xs font-semibold focus:outline-none">
+                    <input type="color" id="input-team-a-color" value="#007AFF" class="w-full h-9 rounded-lg cursor-pointer bg-transparent border-0">
+                </div>
+            </div>
+
+            <!-- Away Team Customization -->
+            <div class="space-y-2 bg-white dark:bg-zinc-800/80 p-3.5 rounded-xl border border-gray-100 dark:border-zinc-700">
+                <p class="text-xs font-bold text-ios-green uppercase">Away Team (Team B)</p>
+                <div class="grid grid-cols-3 gap-2">
+                    <input type="text" id="input-team-b-name" value="Kerry" placeholder="Team Name" class="col-span-2 px-3 py-2 rounded-lg bg-gray-100 dark:bg-zinc-900 border border-gray-200 dark:border-zinc-700 text-xs font-semibold focus:outline-none">
+                    <input type="color" id="input-team-b-color" value="#34C759" class="w-full h-9 rounded-lg cursor-pointer bg-transparent border-0">
+                </div>
+            </div>
+
+            <button onclick="saveTeamCustomization()" class="w-full py-3.5 bg-ios-blue text-white font-semibold rounded-xl shadow-md hover:bg-blue-600 transition ios-active-scale">
+                Save Changes
+            </button>
+        </div>
+    </div>
+
+    <!-- SAFARI ADD TO HOME SCREEN TUTORIAL MODAL -->
+    <div id="pwa-guide-modal" class="fixed inset-0 bg-black/60 backdrop-blur-md z-50 opacity-0 pointer-events-none transition-opacity duration-300 flex flex-col justify-end">
+        <div id="pwa-guide-card" class="bg-ios-bgLight dark:bg-ios-cardDark rounded-t-[32px] p-6 space-y-4 transform translate-y-full transition-transform duration-300 shadow-ios-lg pb-safe">
+            <div class="w-12 h-1.5 bg-gray-300 dark:bg-zinc-700 rounded-full mx-auto -mt-1"></div>
+            
+            <div class="flex justify-between items-center">
+                <h3 class="text-lg font-extrabold flex items-center space-x-2">
+                    <i data-lucide="apple" class="w-5 h-5 text-ios-blue"></i>
+                    <span>Install on iPhone Home Screen</span>
+                </h3>
+                <button onclick="closePwaGuide()" class="w-7 h-7 rounded-full bg-gray-200 dark:bg-zinc-800 text-ios-gray1 flex items-center justify-center">
+                    <i data-lucide="x" class="w-4 h-4"></i>
+                </button>
+            </div>
+
+            <div class="space-y-3 text-xs text-gray-700 dark:text-gray-300 pt-1">
+                <div class="flex items-start space-x-3 bg-white dark:bg-zinc-800/80 p-3 rounded-xl border border-gray-100 dark:border-zinc-700">
+                    <div class="p-2 rounded-lg bg-ios-blue/10 text-ios-blue font-bold">1</div>
+                    <p class="pt-1">Open this page in <strong>Safari</strong> on your iPhone or iPad.</p>
+                </div>
+                <div class="flex items-start space-x-3 bg-white dark:bg-zinc-800/80 p-3 rounded-xl border border-gray-100 dark:border-zinc-700">
+                    <div class="p-2 rounded-lg bg-ios-blue/10 text-ios-blue font-bold">2</div>
+                    <p class="pt-1">Tap the <strong>Share button</strong> <i data-lucide="share" class="w-3.5 h-3.5 inline text-ios-blue"></i> at the bottom of Safari's menu.</p>
+                </div>
+                <div class="flex items-start space-x-3 bg-white dark:bg-zinc-800/80 p-3 rounded-xl border border-gray-100 dark:border-zinc-700">
+                    <div class="p-2 rounded-lg bg-ios-blue/10 text-ios-blue font-bold">3</div>
+                    <p class="pt-1">Scroll down and select <strong>'Add to Home Screen'</strong> <i data-lucide="plus-square" class="w-3.5 h-3.5 inline text-ios-blue"></i>.</p>
+                </div>
+            </div>
+
+            <button onclick="closePwaGuide()" class="w-full py-3.5 bg-ios-blue text-white font-bold rounded-xl shadow-md ios-active-scale">
+                Got it
+            </button>
+        </div>
+    </div>
+
+    <!-- ACTION TOAST NOTIFICATION -->
+    <div id="ios-toast" class="fixed top-16 left-1/2 -translate-x-1/2 bg-black/85 dark:bg-white/95 text-white dark:text-black px-4 py-2 rounded-full text-xs font-medium backdrop-blur-md opacity-0 pointer-events-none transition-all duration-300 shadow-lg flex items-center space-x-2 z-50">
+        <i data-lucide="check-circle" class="w-4 h-4 text-ios-green"></i>
+        <span id="toast-message">Score Updated</span>
+    </div>
+
+    <!-- APP JAVASCRIPT LOGIC -->
+    <script>
+        // State Machine with LocalStorage Persistence
+        const LOCAL_STORAGE_KEY = 'gaa_scorekeeper_state_v1';
+        
+        let state = {
+            timerSeconds: 30 * 60, // Initial 30 Mins (1800s)
+            timerRunning: false,
+            timerInterval: null,
+            period: '1st Half',
+            teamA: {
+                name: 'Dublin',
+                color: '#007AFF',
+                goals: 0,
+                points: 0
+            },
+            teamB: {
+                name: 'Kerry',
+                color: '#34C759',
+                goals: 0,
+                points: 0
+            },
+            events: []
+        };
+
+        // Load Persisted Data if Available
+        function loadState() {
+            const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
+            if (saved) {
+                try {
+                    const parsed = JSON.parse(saved);
+                    state.teamA = parsed.teamA || state.teamA;
+                    state.teamB = parsed.teamB || state.teamB;
+                    state.events = parsed.events || [];
+                    state.period = parsed.period || '1st Half';
+                    state.timerSeconds = parsed.timerSeconds !== undefined ? parsed.timerSeconds : 30 * 60;
+                } catch(e) { console.error('Failed to parse storage'); }
+            }
+        }
+
+        function saveState() {
+            localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify({
+                teamA: state.teamA,
+                teamB: state.teamB,
+                events: state.events,
+                period: state.period,
+                timerSeconds: state.timerSeconds
+            }));
+        }
+
+        // Web Audio Whistle / Sound Synthesizer
+        function playAudioFeedback(type) {
+            const soundEnabled = document.getElementById('sound-toggle').checked;
+            if (!soundEnabled) return;
+
+            try {
+                const AudioContext = window.AudioContext || window.webkitAudioContext;
+                if (!AudioContext) return;
+                const ctx = new AudioContext();
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+
+                if (type === 'whistle') {
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(2400, ctx.currentTime);
+                    osc.frequency.exponentialRampToValueAtTime(2800, ctx.currentTime + 0.1);
+                    osc.frequency.setValueAtTime(2400, ctx.currentTime + 0.2);
+                    gain.gain.setValueAtTime(0.2, ctx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.35);
+                    osc.connect(gain);
+                    gain.connect(ctx.destination);
+                    osc.start();
+                    osc.stop(ctx.currentTime + 0.35);
+                } else if (type === 'goal') {
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(440, ctx.currentTime);
+                    osc.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.25);
+                    gain.gain.setValueAtTime(0.3, ctx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.25);
+                    osc.connect(gain);
+                    gain.connect(ctx.destination);
+                    osc.start();
+                    osc.stop(ctx.currentTime + 0.25);
+                } else {
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(523.25, ctx.currentTime);
+                    gain.gain.setValueAtTime(0.15, ctx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.15);
+                    osc.connect(gain);
+                    gain.connect(ctx.destination);
+                    osc.start();
+                    osc.stop(ctx.currentTime + 0.15);
+                }
+            } catch (e) {
+                console.log('Audio playback constrained');
+            }
+        }
+
+        // Timer Format MM:SS
+        function formatTime(sec) {
+            const m = Math.floor(sec / 60);
+            const s = sec % 60;
+            return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+        }
+
+        // Timer Engine
+        function toggleTimer() {
+            const startBtn = document.getElementById('timer-start-btn');
+            const startLabel = document.getElementById('start-btn-label');
+
+            if (state.timerRunning) {
+                // Pause
+                clearInterval(state.timerInterval);
+                state.timerRunning = false;
+                startLabel.textContent = "Resume Match";
+                startBtn.className = "flex-1 py-3 rounded-xl bg-ios-green text-white font-bold text-sm flex items-center justify-center space-x-1.5 shadow-md ios-active-scale";
+                playAudioFeedback('whistle');
+            } else {
+                // Start
+                if (state.timerSeconds <= 0) return;
+                state.timerRunning = true;
+                startLabel.textContent = "Pause Match";
+                startBtn.className = "flex-1 py-3 rounded-xl bg-ios-orange text-white font-bold text-sm flex items-center justify-center space-x-1.5 shadow-md ios-active-scale";
+                playAudioFeedback('whistle');
+
+                state.timerInterval = setInterval(() => {
+                    if (state.timerSeconds > 0) {
+                        state.timerSeconds--;
+                        updateTimerDisplay();
+                        saveState();
+                    } else {
+                        clearInterval(state.timerInterval);
+                        state.timerRunning = false;
+                        playAudioFeedback('whistle');
+                        startLabel.textContent = "Start";
+                        showToast(`${state.period} Time Expired!`);
+                        triggerConfetti();
+                    }
+                }, 1000);
+            }
+        }
+
+        function updateTimerDisplay() {
+            document.getElementById('timer-display').textContent = formatTime(state.timerSeconds);
+        }
+
+        function addExtraTime(mins) {
+            state.timerSeconds += mins * 60;
+            updateTimerDisplay();
+            showToast(`+${mins} Min Added`);
+            logEvent(`Added +${mins} Min Stoppage Time`);
+            saveState();
+        }
+
+        function nextPeriod() {
+            if (state.period === '1st Half') {
+                state.period = 'Half-Time';
+                state.timerSeconds = 0;
+                clearInterval(state.timerInterval);
+                state.timerRunning = false;
+                document.getElementById('start-btn-label').textContent = "Start 2nd Half";
+                document.getElementById('period-btn-label').textContent = "Start 2nd Half";
+                logEvent('Half-Time Whistle');
+            } else if (state.period === 'Half-Time') {
+                state.period = '2nd Half';
+                state.timerSeconds = 30 * 60; // 30 Mins for 2nd half
+                document.getElementById('period-btn-label').textContent = "Full-Time";
+                document.getElementById('start-btn-label').textContent = "Start 2nd Half";
+                logEvent('2nd Half Started');
+            } else if (state.period === '2nd Half') {
+                state.period = 'Full-Time';
+                clearInterval(state.timerInterval);
+                state.timerRunning = false;
+                document.getElementById('period-btn-label').textContent = "Ended";
+                logEvent('Full-Time Whistle - Final Score');
+                triggerConfetti();
+            }
+            
+            document.getElementById('match-status-pill').textContent = state.period;
+            updateTimerDisplay();
+            saveState();
+        }
+
+        // GAA Score Calculation Logic
+        function modifyScore(teamKey, scoreType, delta) {
+            const team = teamKey === 'a' ? state.teamA : state.teamB;
+            
+            if (scoreType === 'goals') {
+                team.goals = Math.max(0, team.goals + delta);
+            } else {
+                team.points = Math.max(0, team.points + delta);
+            }
+
+            if (delta > 0) {
+                if (scoreType === 'goals') {
+                    playAudioFeedback('goal');
+                    showToast(`GOAL for ${team.name}! ⚽`);
+                    triggerConfetti();
+                } else {
+                    playAudioFeedback('point');
+                    showToast(`Point for ${team.name}! 🙌`);
+                }
+
+                const timeStamp = formatTime(state.timerSeconds);
+                const desc = scoreType === 'goals' ? 'GOAL! ⚽' : 'Point 🙌';
+                logEvent(`${team.name} ${desc} (${timeStamp})`);
+            }
+
+            renderScoreboard();
+            saveState();
+        }
+
+        function renderScoreboard() {
+            const teamATotal = (state.teamA.goals * 3) + state.teamA.points;
+            const teamBTotal = (state.teamB.goals * 3) + state.teamB.points;
+
+            const teamAGAA = `${state.teamA.goals}-${String(state.teamA.points).padStart(2, '0')}`;
+            const teamBGAA = `${state.teamB.goals}-${String(state.teamB.points).padStart(2, '0')}`;
+
+            document.getElementById('team-a-name-disp').textContent = state.teamA.name;
+            document.getElementById('team-a-badge').style.backgroundColor = state.teamA.color;
+            document.getElementById('team-a-gaa-display').textContent = teamAGAA;
+            document.getElementById('team-a-total-pts').textContent = teamATotal;
+            document.getElementById('team-a-goals-count').textContent = state.teamA.goals;
+            document.getElementById('team-a-points-count').textContent = state.teamA.points;
+
+            document.getElementById('team-b-name-disp').textContent = state.teamB.name;
+            document.getElementById('team-b-badge').style.backgroundColor = state.teamB.color;
+            document.getElementById('team-b-gaa-display').textContent = teamBGAA;
+            document.getElementById('team-b-total-pts').textContent = teamBTotal;
+            document.getElementById('team-b-goals-count').textContent = state.teamB.goals;
+            document.getElementById('team-b-points-count').textContent = state.teamB.points;
+        }
+
+        // Timeline Event Log
+        function logEvent(description) {
+            const eventObj = {
+                id: Date.now(),
+                time: formatTime(state.timerSeconds),
+                period: state.period,
+                desc: description
+            };
+            state.events.unshift(eventObj);
+            renderTimeline();
+        }
+
+        function logCustomEvent(type) {
+            logEvent(`${type} logged`);
+            showToast(`${type} logged`);
+            playAudioFeedback('point');
+            saveState();
+        }
+
+        function renderTimeline() {
+            const container = document.getElementById('events-timeline-container');
+            const badge = document.getElementById('log-count-badge');
+            
+            badge.textContent = `${state.events.length} Events`;
+            container.innerHTML = '';
+
+            if (state.events.length === 0) {
+                container.innerHTML = `<p class="text-xs text-center text-ios-gray1 py-8">No match events logged yet.</p>`;
+                return;
+            }
+
+            state.events.forEach(ev => {
+                const item = document.createElement('div');
+                item.className = "p-3 rounded-xl bg-white dark:bg-ios-cardDark border border-gray-100 dark:border-zinc-800 shadow-ios-sm flex justify-between items-center text-xs";
+                item.innerHTML = `
+                    <div class="flex items-center space-x-2.5">
+                        <span class="font-mono font-bold text-ios-blue">${ev.time}</span>
+                        <span class="font-semibold text-gray-800 dark:text-gray-200">${ev.desc}</span>
+                    </div>
+                    <span class="text-[10px] text-ios-gray1 font-medium">${ev.period}</span>
+                `;
+                container.appendChild(item);
+            });
+        }
+
+        // Reset All Match Data
+        function resetMatch() {
+            if (confirm('Reset scorecard, timer and event log?')) {
+                clearInterval(state.timerInterval);
+                state.timerRunning = false;
+                state.timerSeconds = 30 * 60;
+                state.period = '1st Half';
+                state.teamA.goals = 0;
+                state.teamA.points = 0;
+                state.teamB.goals = 0;
+                state.teamB.points = 0;
+                state.events = [];
+
+                document.getElementById('start-btn-label').textContent = "Start Match";
+                document.getElementById('period-btn-label').textContent = "Half-Time";
+                document.getElementById('match-status-pill').textContent = "1st Half";
+
+                updateTimerDisplay();
+                renderScoreboard();
+                renderTimeline();
+                localStorage.removeItem(LOCAL_STORAGE_KEY);
+                showToast('Match Reset');
+            }
+        }
+
+        // Customization Modal Handlers
+        function openCustomizeModal() {
+            document.getElementById('input-team-a-name').value = state.teamA.name;
+            document.getElementById('input-team-a-color').value = state.teamA.color;
+            document.getElementById('input-team-b-name').value = state.teamB.name;
+            document.getElementById('input-team-b-color').value = state.teamB.color;
+
+            const modal = document.getElementById('customize-modal');
+            const card = document.getElementById('customize-modal-card');
+            modal.classList.remove('opacity-0', 'pointer-events-none');
+            card.classList.remove('translate-y-full');
+        }
+
+        function closeCustomizeModal() {
+            const modal = document.getElementById('customize-modal');
+            const card = document.getElementById('customize-modal-card');
+            card.classList.add('translate-y-full');
+            modal.classList.add('opacity-0', 'pointer-events-none');
+        }
+
+        function saveTeamCustomization() {
+            const nameA = document.getElementById('input-team-a-name').value.trim() || 'Home';
+            const colorA = document.getElementById('input-team-a-color').value;
+            const nameB = document.getElementById('input-team-b-name').value.trim() || 'Away';
+            const colorB = document.getElementById('input-team-b-color').value;
+
+            state.teamA.name = nameA;
+            state.teamA.color = colorA;
+            state.teamB.name = nameB;
+            state.teamB.color = colorB;
+
+            renderScoreboard();
+            closeCustomizeModal();
+            saveState();
+            showToast('Teams Saved');
+        }
+
+        // PWA Install Modal Guide
+        function openPwaGuide() {
+            const modal = document.getElementById('pwa-guide-modal');
+            const card = document.getElementById('pwa-guide-card');
+            modal.classList.remove('opacity-0', 'pointer-events-none');
+            card.classList.remove('translate-y-full');
+        }
+
+        function closePwaGuide() {
+            const modal = document.getElementById('pwa-guide-modal');
+            const card = document.getElementById('pwa-guide-card');
+            card.classList.add('translate-y-full');
+            modal.classList.add('opacity-0', 'pointer-events-none');
+        }
+
+        function dismissBanner() {
+            document.getElementById('pwa-install-banner').classList.add('hidden');
+        }
+
+        // View Switches
+        function switchTab(tab) {
+            document.querySelectorAll('.view-panel').forEach(el => el.classList.add('hidden'));
+            
+            ['match', 'timeline', 'settings'].forEach(t => {
+                const btn = document.getElementById(`tab-${t}`);
+                if (t === tab) {
+                    btn.className = 'flex flex-col items-center space-y-1 text-ios-blue ios-active-scale';
+                } else {
+                    btn.className = 'flex flex-col items-center space-y-1 text-ios-gray1 hover:text-ios-blue transition ios-active-scale';
+                }
+            });
+
+            document.getElementById(`view-${tab}`).classList.remove('hidden');
+        }
+
+        // Toast Helper
+        function showToast(message) {
+            const toast = document.getElementById('ios-toast');
+            document.getElementById('toast-message').textContent = message;
+            toast.classList.remove('opacity-0', 'pointer-events-none');
+            setTimeout(() => {
+                toast.classList.add('opacity-0', 'pointer-events-none');
+            }, 2000);
+        }
+
+        // Confetti Celebration
+        function triggerConfetti() {
+            if (typeof confetti === 'function') {
+                confetti({
+                    particleCount: 40,
+                    spread: 60,
+                    origin: { y: 0.8 }
+                });
+            }
+        }
+
+        // Theme Toggle
+        document.getElementById('toggle-theme-btn').addEventListener('click', () => {
+            document.documentElement.classList.toggle('dark');
+        });
+
+        // Initialize App
+        window.onload = function() {
+            lucide.createIcons();
+            loadState();
+            updateTimerDisplay();
+            renderScoreboard();
+            renderTimeline();
+
+            // Hide install banner if running in Standalone web clip mode
+            if (window.navigator.standalone === true || window.matchMedia('(display-mode: standalone)').matches) {
+                document.getElementById('pwa-install-banner').classList.add('hidden');
+            }
+        };
+    </script>
+</body>
+</html>
